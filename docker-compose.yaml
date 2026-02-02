@@ -1,0 +1,125 @@
+version: '3.8'
+
+services:
+    postgres:
+        image: postgres:16-alpine
+        container_name: happy-postgres
+        environment:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_DB: handy
+        volumes:
+            - ./data/postgres:/var/lib/postgresql/data
+        ports:
+            - "5432:5432"
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres -d handy"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+
+    redis:
+        image: redis:7-alpine
+        container_name: happy-redis
+        command: redis-server --appendonly yes
+        volumes:
+            - ./data/redis:/data
+        ports:
+            - "6379:6379"
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+
+    minio:
+        image: minio/minio
+        container_name: happy-minio
+        command: server /data --console-address ":9001"
+        environment:
+            MINIO_ROOT_USER: minioadmin
+            MINIO_ROOT_PASSWORD: minioadmin
+        volumes:
+            - ./data/minio:/data
+        ports:
+            - "9000:9000"
+            - "9001:9001"
+        healthcheck:
+            test: ["CMD", "mc", "ready", "local"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+
+    # MinIO bucket initialization
+    minio-init:
+        image: minio/mc
+        container_name: happy-minio-init
+        depends_on:
+            minio:
+                condition: service_started
+        entrypoint: >
+            /bin/sh -c "
+            sleep 5;
+            mc alias set local http://minio:9000 minioadmin minioadmin;
+            mc mb -p local/happy || true;
+            mc anonymous set download local/happy;
+            exit 0;
+            "
+
+    happy-server:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: happy-server
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+            minio:
+                condition: service_started
+            minio-init:
+                condition: service_completed_successfully
+        environment:
+            # Database
+            DATABASE_URL: postgresql://postgres:postgres@postgres:5432/handy
+            # Redis
+            REDIS_URL: redis://redis:6379
+            # S3/MinIO
+            S3_HOST: minio
+            S3_PORT: "9000"
+            S3_USE_SSL: "false"
+            S3_ACCESS_KEY: minioadmin
+            S3_SECRET_KEY: minioadmin
+            S3_BUCKET: happy
+            S3_PUBLIC_URL: http://localhost:9000/happy
+            # Server
+            PORT: "3005"
+            NODE_ENV: production
+            HANDY_MASTER_SECRET: your-super-secret-key-change-in-production
+            # Metrics
+            METRICS_ENABLED: "true"
+            METRICS_PORT: "9090"
+            # Optional: GitHub OAuth (required for login)
+            # GITHUB_APP_ID: ""
+            # GITHUB_PRIVATE_KEY: ""
+            # GITHUB_CLIENT_ID: ""
+            # GITHUB_CLIENT_SECRET: ""
+            # GITHUB_REDIRECT_URI: ""
+            # GITHUB_WEBHOOK_SECRET: ""
+            # Optional: Voice feature
+            # ELEVENLABS_API_KEY: ""
+        ports:
+            - "80:3005"    # Cloudflare 回源到 80，容器内 3005
+            - "9090:9090"  # Metrics
+        healthcheck:
+            test: ["CMD", "wget", "-q", "--spider", "http://localhost:3005/health"]
+            interval: 10s
+            timeout: 5s
+            retries: 3
+            start_period: 30s
+
+volumes:
+    postgres_data:
+    redis_data:
+    minio_data:
