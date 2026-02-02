@@ -3,12 +3,35 @@
 #############################################
 # Happy Server 自动化安装脚本
 # 适用于全新 Linux 机器
+#
+# 用法:
+#   交互式安装:
+#     curl -fsSL https://raw.githubusercontent.com/xuangong/happy-server/main/install.sh -o install.sh && sudo bash install.sh
+#
+#   非交互式安装 (使用默认值):
+#     curl -fsSL https://raw.githubusercontent.com/xuangong/happy-server/main/install.sh -o install.sh && sudo bash install.sh -y
+#
 #############################################
 
 set -e
 
+# 解析命令行参数
+AUTO_YES=false
+while getopts "yh" opt; do
+    case $opt in
+        y) AUTO_YES=true ;;
+        h)
+            echo "用法: $0 [-y] [-h]"
+            echo "  -y  非交互式安装，使用默认值"
+            echo "  -h  显示帮助"
+            exit 0
+            ;;
+        *) ;;
+    esac
+done
+
 # 确保有交互式输入（支持 curl | bash 方式）
-if [ ! -t 0 ]; then
+if [ "$AUTO_YES" = false ] && [ ! -t 0 ]; then
     exec < /dev/tty
 fi
 
@@ -162,23 +185,33 @@ clone_repository() {
     DEFAULT_REPO="https://github.com/xuangong/happy-server.git"
     DEFAULT_INSTALL_DIR="/opt/happy-server"
 
-    echo -n "请输入 Git 仓库地址 [$DEFAULT_REPO]: "
-    read REPO_URL
-    REPO_URL=${REPO_URL:-$DEFAULT_REPO}
+    if [ "$AUTO_YES" = true ]; then
+        REPO_URL="$DEFAULT_REPO"
+        INSTALL_DIR="$DEFAULT_INSTALL_DIR"
+    else
+        echo -n "请输入 Git 仓库地址 [$DEFAULT_REPO]: "
+        read REPO_URL
+        REPO_URL=${REPO_URL:-$DEFAULT_REPO}
 
-    echo -n "请输入安装目录 [$DEFAULT_INSTALL_DIR]: "
-    read INSTALL_DIR
-    INSTALL_DIR=${INSTALL_DIR:-$DEFAULT_INSTALL_DIR}
+        echo -n "请输入安装目录 [$DEFAULT_INSTALL_DIR]: "
+        read INSTALL_DIR
+        INSTALL_DIR=${INSTALL_DIR:-$DEFAULT_INSTALL_DIR}
+    fi
 
     if [ -d "$INSTALL_DIR" ]; then
         log_warn "目录 $INSTALL_DIR 已存在"
-        echo -n "是否删除并重新克隆? [y/N]: "
-        read CONFIRM
-        if [ "$CONFIRM" = "y" ] || [ "$CONFIRM" = "Y" ]; then
-            $SUDO rm -rf "$INSTALL_DIR"
-        else
+        if [ "$AUTO_YES" = true ]; then
             log_info "使用现有目录"
             return 0
+        else
+            echo -n "是否删除并重新克隆? [y/N]: "
+            read CONFIRM
+            if [ "$CONFIRM" = "y" ] || [ "$CONFIRM" = "Y" ]; then
+                $SUDO rm -rf "$INSTALL_DIR"
+            else
+                log_info "使用现有目录"
+                return 0
+            fi
         fi
     fi
 
@@ -221,16 +254,21 @@ configure_environment() {
     # 生成 HANDY_MASTER_SECRET
     DEFAULT_MASTER_SECRET=$(generate_secret)
 
-    echo ""
-    echo "HANDY_MASTER_SECRET 用于签发认证 token"
-    echo -n "请输入 HANDY_MASTER_SECRET [$DEFAULT_MASTER_SECRET]: "
-    read MASTER_SECRET
-    MASTER_SECRET=${MASTER_SECRET:-$DEFAULT_MASTER_SECRET}
+    if [ "$AUTO_YES" = true ]; then
+        MASTER_SECRET="$DEFAULT_MASTER_SECRET"
+        LISTEN_PORT=80
+    else
+        echo ""
+        echo "HANDY_MASTER_SECRET 用于签发认证 token"
+        echo -n "请输入 HANDY_MASTER_SECRET [$DEFAULT_MASTER_SECRET]: "
+        read MASTER_SECRET
+        MASTER_SECRET=${MASTER_SECRET:-$DEFAULT_MASTER_SECRET}
 
-    # 监听端口
-    echo -n "请输入监听端口 [80]: "
-    read LISTEN_PORT
-    LISTEN_PORT=${LISTEN_PORT:-80}
+        # 监听端口
+        echo -n "请输入监听端口 [80]: "
+        read LISTEN_PORT
+        LISTEN_PORT=${LISTEN_PORT:-80}
+    fi
 
     # 保存配置到 .env 文件
     cat > "$INSTALL_DIR/.env" << EOF
@@ -581,9 +619,13 @@ NODEJS_SCRIPT
     if [ -n "$ACCESS_KEY_CONTENT" ]; then
         # 询问保存位置
         DEFAULT_HAPPY_DIR="$HOME/.happy"
-        echo -n "请输入 Happy CLI 配置目录 [$DEFAULT_HAPPY_DIR]: "
-        read HAPPY_DIR
-        HAPPY_DIR=${HAPPY_DIR:-$DEFAULT_HAPPY_DIR}
+        if [ "$AUTO_YES" = true ]; then
+            HAPPY_DIR="$DEFAULT_HAPPY_DIR"
+        else
+            echo -n "请输入 Happy CLI 配置目录 [$DEFAULT_HAPPY_DIR]: "
+            read HAPPY_DIR
+            HAPPY_DIR=${HAPPY_DIR:-$DEFAULT_HAPPY_DIR}
+        fi
 
         mkdir -p "$HAPPY_DIR"
         echo "$ACCESS_KEY_CONTENT" > "$HAPPY_DIR/access.key"
@@ -704,11 +746,16 @@ main() {
     echo "  - Docker Compose"
     echo "  - Git"
     echo ""
-    echo -n "是否继续? [Y/n]: "
-    read CONFIRM
-    if [ "$CONFIRM" = "n" ] || [ "$CONFIRM" = "N" ]; then
-        log_info "安装已取消"
-        exit 0
+
+    if [ "$AUTO_YES" = true ]; then
+        log_info "使用 -y 参数，跳过确认"
+    else
+        echo -n "是否继续? [Y/n]: "
+        read CONFIRM
+        if [ "$CONFIRM" = "n" ] || [ "$CONFIRM" = "N" ]; then
+            log_info "安装已取消"
+            exit 0
+        fi
     fi
 
     install_basic_tools
