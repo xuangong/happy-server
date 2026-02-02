@@ -7,6 +7,11 @@
 
 set -e
 
+# 确保有交互式输入（支持 curl | bash 方式）
+if [ ! -t 0 ]; then
+    exec < /dev/tty
+fi
+
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
