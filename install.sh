@@ -154,7 +154,7 @@ clone_repository() {
     log_info "配置代码仓库"
 
     # 默认值
-    DEFAULT_REPO="https://github.com/anthropics/happy-server.git"
+    DEFAULT_REPO="https://github.com/xuangong/happy-server.git"
     DEFAULT_INSTALL_DIR="/opt/happy-server"
 
     echo -n "请输入 Git 仓库地址 [$DEFAULT_REPO]: "
