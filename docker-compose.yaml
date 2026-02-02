@@ -110,7 +110,7 @@ services:
             # Optional: Voice feature
             # ELEVENLABS_API_KEY: ""
         ports:
-            - "80:3005"    # Cloudflare 回源到 80，容器内 3005
+            - "8080:3005"
             - "9090:9090"  # Metrics
         healthcheck:
             test: ["CMD", "wget", "-q", "--spider", "http://localhost:3005/health"]
@@ -124,10 +124,12 @@ services:
             context: ../happy
             dockerfile: Dockerfile.webapp
             args:
-                - EXPO_PUBLIC_HAPPY_SERVER_URL=${WEBAPP_SERVER_URL:-http://xianliao.de5.net:8080}
+                EXPO_PUBLIC_HAPPY_SERVER_URL: http://xianliao.de5.net:8080
         container_name: happy-webapp
         ports:
-            - "${WEBAPP_PORT:-8888}:80"
+            - "8888:80"
+        depends_on:
+            - happy-server
         restart: always
 
 volumes:
