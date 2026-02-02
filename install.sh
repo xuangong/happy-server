@@ -176,8 +176,8 @@ install_basic_tools() {
     log_success "基础工具已就绪"
 }
 
-# 克隆代码仓库
-clone_repository() {
+# 克隆 Happy Server 代码仓库
+clone_happy_server_repository() {
     echo ""
     log_info "配置代码仓库"
 
@@ -224,6 +224,26 @@ clone_repository() {
     log_success "代码仓库克隆完成: $INSTALL_DIR"
 }
 
+# 克隆 Happy 仓库（用于构建 webapp）
+clone_happy_repository() {
+    echo ""
+    log_info "克隆 Happy 仓库（用于构建 webapp）"
+
+    HAPPY_REPO="https://github.com/xuangong/happy.git"
+    HAPPY_DIR="/opt/happy"
+
+    if [ -d "$HAPPY_DIR" ]; then
+        log_info "Happy 仓库已存在: $HAPPY_DIR"
+        return 0
+    fi
+
+    log_info "正在克隆 Happy 仓库..."
+    $SUDO git clone "$HAPPY_REPO" "$HAPPY_DIR"
+    $SUDO chown -R $(id -u):$(id -g) "$HAPPY_DIR"
+
+    log_success "Happy 仓库克隆完成: $HAPPY_DIR"
+}
+
 # 创建数据目录
 create_data_directories() {
     log_info "创建数据目录..."
@@ -256,7 +276,7 @@ configure_environment() {
 
     if [ "$AUTO_YES" = true ]; then
         MASTER_SECRET="$DEFAULT_MASTER_SECRET"
-        LISTEN_PORT=80
+        LISTEN_PORT=8080
     else
         echo ""
         echo "HANDY_MASTER_SECRET 用于签发认证 token"
@@ -265,9 +285,9 @@ configure_environment() {
         MASTER_SECRET=${MASTER_SECRET:-$DEFAULT_MASTER_SECRET}
 
         # 监听端口
-        echo -n "请输入监听端口 [80]: "
+        echo -n "请输入监听端口 [8080]: "
         read LISTEN_PORT
-        LISTEN_PORT=${LISTEN_PORT:-80}
+        LISTEN_PORT=${LISTEN_PORT:-8080}
     fi
 
     # 保存配置到 .env 文件
@@ -297,6 +317,10 @@ S3_PUBLIC_URL=http://localhost:9000/happy
 # Server
 PORT=3005
 NODE_ENV=production
+
+# Webapp
+WEBAPP_SERVER_URL=http://localhost:$LISTEN_PORT
+WEBAPP_PORT=8888
 EOF
 
     log_success "环境配置已保存到 $INSTALL_DIR/.env"
@@ -400,7 +424,7 @@ services:
             METRICS_ENABLED: "true"
             METRICS_PORT: "9090"
         ports:
-            - "${LISTEN_PORT:-80}:3005"
+            - "${LISTEN_PORT:-8080}:3005"
             - "9090:9090"
         healthcheck:
             test: ["CMD", "wget", "-q", "--spider", "http://localhost:3005/health"]
@@ -408,6 +432,17 @@ services:
             timeout: 5s
             retries: 3
             start_period: 30s
+
+    happy-webapp:
+        build:
+            context: /opt/happy
+            dockerfile: Dockerfile.webapp
+            args:
+                - EXPO_PUBLIC_HAPPY_SERVER_URL=${WEBAPP_SERVER_URL:-http://localhost:8080}
+        container_name: happy-webapp
+        ports:
+            - "${WEBAPP_PORT:-8888}:80"
+        restart: always
 EOF
 
     log_success "docker-compose.yaml 已创建"
@@ -704,14 +739,16 @@ show_summary() {
     echo ""
     echo "安装目录: $INSTALL_DIR"
     echo "数据目录: $INSTALL_DIR/data"
-    echo "监听端口: $LISTEN_PORT"
     echo ""
-    echo "访问地址: http://localhost:${LISTEN_PORT}/"
-    echo "健康检查: http://localhost:${LISTEN_PORT}/health"
+    echo "服务地址:"
+    echo "  API Server: http://localhost:${LISTEN_PORT}/"
+    echo "  Web App:    http://localhost:8888/"
+    echo "  健康检查:   http://localhost:${LISTEN_PORT}/health"
     echo ""
     echo "常用命令:"
     echo "  cd $INSTALL_DIR"
-    echo "  docker compose logs -f happy-server  # 查看日志"
+    echo "  docker compose logs -f happy-server  # 查看 server 日志"
+    echo "  docker compose logs -f happy-webapp  # 查看 webapp 日志"
     echo "  docker compose restart               # 重启服务"
     echo "  docker compose down                  # 停止服务"
     echo "  docker compose up -d                 # 启动服务"
@@ -767,7 +804,8 @@ main() {
         log_warn "Docker 已安装，但可能需要重新登录才能无 sudo 使用"
     fi
 
-    clone_repository
+    clone_happy_server_repository
+    clone_happy_repository
     create_data_directories
     configure_environment
     create_docker_compose

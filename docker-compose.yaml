@@ -119,6 +119,17 @@ services:
             retries: 3
             start_period: 30s
 
+    happy-webapp:
+        build:
+            context: ../happy
+            dockerfile: Dockerfile.webapp
+            args:
+                - EXPO_PUBLIC_HAPPY_SERVER_URL=${WEBAPP_SERVER_URL:-http://xianliao.de5.net:8080}
+        container_name: happy-webapp
+        ports:
+            - "${WEBAPP_PORT:-8888}:80"
+        restart: always
+
 volumes:
     postgres_data:
     redis_data:
