@@ -277,6 +277,7 @@ configure_environment() {
     if [ "$AUTO_YES" = true ]; then
         MASTER_SECRET="$DEFAULT_MASTER_SECRET"
         LISTEN_PORT=8080
+        SERVER_HOST="xianliao.de5.net"
     else
         echo ""
         echo "HANDY_MASTER_SECRET 用于签发认证 token"
@@ -288,6 +289,13 @@ configure_environment() {
         echo -n "请输入监听端口 [8080]: "
         read LISTEN_PORT
         LISTEN_PORT=${LISTEN_PORT:-8080}
+
+        # 服务器外部地址（用于 webapp 连接）
+        echo ""
+        echo "服务器外部地址用于 webapp 连接到 API"
+        echo -n "请输入服务器外部地址 [xianliao.de5.net]: "
+        read SERVER_HOST
+        SERVER_HOST=${SERVER_HOST:-xianliao.de5.net}
     fi
 
     # 保存配置到 .env 文件
@@ -319,7 +327,7 @@ PORT=3005
 NODE_ENV=production
 
 # Webapp
-WEBAPP_SERVER_URL=http://localhost:$LISTEN_PORT
+WEBAPP_SERVER_URL=http://${SERVER_HOST}:${LISTEN_PORT}
 WEBAPP_PORT=8888
 EOF
 
@@ -438,7 +446,7 @@ services:
             context: /opt/happy
             dockerfile: Dockerfile.webapp
             args:
-                - EXPO_PUBLIC_HAPPY_SERVER_URL=${WEBAPP_SERVER_URL:-http://localhost:8080}
+                - EXPO_PUBLIC_HAPPY_SERVER_URL=${WEBAPP_SERVER_URL:-http://xianliao.de5.net:8080}
         container_name: happy-webapp
         ports:
             - "${WEBAPP_PORT:-8888}:80"
@@ -541,13 +549,6 @@ generate_access_key() {
     # 使用 Node.js 生成密钥对并创建账户
     log_info "生成密钥对并创建账户..."
 
-    # 检查是否安装了 node
-    if ! command -v node &> /dev/null; then
-        log_warn "Node.js 未安装，跳过自动生成 access.key"
-        log_info "请手动生成 access.key 或使用 happy-cli auth login"
-        return 0
-    fi
-
     # 创建临时脚本生成密钥
     TEMP_SCRIPT=$(mktemp)
     cat > "$TEMP_SCRIPT" << 'NODEJS_SCRIPT'
@@ -648,7 +649,12 @@ main().catch(err => {
 NODEJS_SCRIPT
 
     # 运行脚本生成 access.key
-    ACCESS_KEY_CONTENT=$(LISTEN_PORT=$LISTEN_PORT node "$TEMP_SCRIPT" 2>/dev/null)
+    if command -v node &> /dev/null; then
+        ACCESS_KEY_CONTENT=$(LISTEN_PORT=$LISTEN_PORT node "$TEMP_SCRIPT" 2>/dev/null)
+    else
+        # 使用 Docker 容器中的 Node.js，通过管道传入脚本
+        ACCESS_KEY_CONTENT=$(cat "$TEMP_SCRIPT" | docker run --rm -i --network host -e LISTEN_PORT=$LISTEN_PORT node:20-alpine node 2>/dev/null)
+    fi
     rm -f "$TEMP_SCRIPT"
 
     if [ -n "$ACCESS_KEY_CONTENT" ]; then
