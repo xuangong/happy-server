@@ -716,7 +716,10 @@ ${SERVER_HOST}:${LISTEN_PORT} {
     }
 
     handle /socket.io/* {
-        reverse_proxy happy-server:3005
+        reverse_proxy happy-server:3005 {
+            header_up Connection {header.Connection}
+            header_up Upgrade {header.Upgrade}
+        }
     }
 
     # 静态文件 (MinIO) → 可选，如果需要通过 Caddy 代理
