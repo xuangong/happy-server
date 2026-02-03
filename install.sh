@@ -701,11 +701,11 @@ generate_access_key() {
     log_info "等待服务启动..."
     sleep 10
 
-    # 检查服务是否正常
+    # 检查服务是否正常 (直接检查 happy-server 容器)
     MAX_RETRIES=30
     RETRY=0
     while [ $RETRY -lt $MAX_RETRIES ]; do
-        if curl -s "http://localhost:${LISTEN_PORT}/health" | grep -q "ok"; then
+        if docker exec happy-server wget -q --spider http://localhost:3005/health 2>/dev/null; then
             log_success "服务已启动"
             break
         fi
@@ -754,8 +754,8 @@ function sign(message, secretKey) {
 }
 
 async function main() {
-    const port = process.env.LISTEN_PORT || 80;
-    const serverUrl = `http://localhost:${port}`;
+    // 直接连接 happy-server 容器 (端口 3005)
+    const serverUrl = 'http://happy-server:3005';
 
     // 生成签名密钥对
     const keyPair = generateSignKeyPair();
@@ -821,13 +821,8 @@ main().catch(err => {
 });
 NODEJS_SCRIPT
 
-    # 运行脚本生成 access.key
-    if command -v node &> /dev/null; then
-        ACCESS_KEY_CONTENT=$(LISTEN_PORT=$LISTEN_PORT node "$TEMP_SCRIPT" 2>/dev/null)
-    else
-        # 使用 Docker 容器中的 Node.js，通过管道传入脚本
-        ACCESS_KEY_CONTENT=$(cat "$TEMP_SCRIPT" | docker run --rm -i --network host -e LISTEN_PORT=$LISTEN_PORT node:20-alpine node 2>/dev/null)
-    fi
+    # 运行脚本生成 access.key (使用 Docker 网络连接 happy-server)
+    ACCESS_KEY_CONTENT=$(cat "$TEMP_SCRIPT" | docker run --rm -i --network happy-server_default node:20-alpine node 2>/dev/null)
     rm -f "$TEMP_SCRIPT"
 
     if [ -n "$ACCESS_KEY_CONTENT" ]; then
@@ -889,17 +884,24 @@ verify_installation() {
 
     sleep 5
 
-    # 检查健康状态
-    if curl -s "http://localhost:${LISTEN_PORT}/" | grep -q "Welcome to Happy Server"; then
+    # 检查健康状态 (直接检查 happy-server 容器)
+    if docker exec happy-server wget -q -O - http://localhost:3005/ 2>/dev/null | grep -q "Welcome to Happy Server"; then
         log_success "✓ 基础连接正常"
     else
-        log_error "✗ 基础连接失败"
+        log_warn "✗ 基础连接检查失败 (服务可能仍在启动)"
     fi
 
-    if curl -s "http://localhost:${LISTEN_PORT}/health" | grep -q "ok"; then
+    if docker exec happy-server wget -q -O - http://localhost:3005/health 2>/dev/null | grep -q "ok"; then
         log_success "✓ 健康检查通过"
     else
-        log_error "✗ 健康检查失败"
+        log_warn "✗ 健康检查失败 (服务可能仍在启动)"
+    fi
+
+    # 检查 HTTPS 是否正常 (通过 Caddy)
+    if curl -sk "https://localhost:${LISTEN_PORT}/health" 2>/dev/null | grep -q "ok"; then
+        log_success "✓ HTTPS 代理正常"
+    else
+        log_warn "✗ HTTPS 代理检查失败 (证书可能仍在获取)"
     fi
 
     # 显示容器状态
@@ -920,14 +922,15 @@ show_summary() {
     echo "数据目录: $INSTALL_DIR/data"
     echo ""
     echo "服务地址:"
-    echo "  API Server: http://localhost:${LISTEN_PORT}/"
+    echo "  API Server: https://${SERVER_HOST}:${LISTEN_PORT}/"
     echo "  Web App:    http://localhost:8888/"
-    echo "  健康检查:   http://localhost:${LISTEN_PORT}/health"
+    echo "  健康检查:   https://${SERVER_HOST}:${LISTEN_PORT}/health"
     echo ""
     echo "常用命令:"
     echo "  cd $INSTALL_DIR"
     echo "  docker compose logs -f happy-server  # 查看 server 日志"
     echo "  docker compose logs -f happy-webapp  # 查看 webapp 日志"
+    echo "  docker compose logs -f caddy         # 查看 Caddy 日志"
     echo "  docker compose restart               # 重启服务"
     echo "  docker compose down                  # 停止服务"
     echo "  docker compose up -d                 # 启动服务"
@@ -936,7 +939,7 @@ show_summary() {
     echo "  cp -r $INSTALL_DIR/data /path/to/backup/"
     echo ""
     echo "CLI 连接:"
-    echo "  HAPPY_SERVER_URL=http://localhost:${LISTEN_PORT} happy daemon start"
+    echo "  HAPPY_SERVER_URL=https://${SERVER_HOST}:${LISTEN_PORT} happy daemon start"
     echo ""
     if [ -f "$HAPPY_DIR/access.key" ]; then
         echo "认证凭证: $HAPPY_DIR/access.key"
