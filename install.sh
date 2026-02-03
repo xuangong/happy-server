@@ -261,9 +261,14 @@ create_data_directories() {
     log_info "备份时请复制此目录: $DATA_DIR"
 }
 
-# 生成随机密钥
+# 生成 URL 安全的随机密码（只包含字母和数字）
 generate_secret() {
-    openssl rand -base64 32
+    openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 32
+}
+
+# 生成用于数据库连接的安全密码（避免 URL 特殊字符）
+generate_db_password() {
+    openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 24
 }
 
 # 配置环境变量
@@ -271,11 +276,11 @@ configure_environment() {
     echo ""
     log_info "配置服务参数"
 
-    # 生成随机密码备用
+    # 生成随机密码备用（使用 URL 安全字符）
     RANDOM_MASTER_SECRET=$(generate_secret)
-    RANDOM_POSTGRES_PASSWORD=$(generate_secret)
-    RANDOM_REDIS_PASSWORD=$(generate_secret)
-    RANDOM_MINIO_PASSWORD=$(generate_secret)
+    RANDOM_POSTGRES_PASSWORD=$(generate_db_password)
+    RANDOM_REDIS_PASSWORD=$(generate_db_password)
+    RANDOM_MINIO_PASSWORD=$(generate_db_password)
 
     if [ "$AUTO_YES" = true ]; then
         MASTER_SECRET="$RANDOM_MASTER_SECRET"
