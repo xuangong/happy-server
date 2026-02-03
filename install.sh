@@ -581,6 +581,7 @@ services:
             PORT: "3005"
             NODE_ENV: production
             HANDY_MASTER_SECRET: ${HANDY_MASTER_SECRET}
+            WEBAPP_URL: https://${SERVER_HOST}:${LISTEN_PORT}
             METRICS_ENABLED: "true"
             METRICS_PORT: "9090"
         expose:
