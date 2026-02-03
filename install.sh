@@ -418,7 +418,15 @@ configure_environment() {
         CHOICE=${CHOICE:-1}
         case $CHOICE in
             1) CLOUDFLARE_API_TOKEN=""; echo "  → 已跳过，请稍后在 .env 中配置" ;;
-            2) echo -n "  请输入: "; read -r CLOUDFLARE_API_TOKEN ;;
+            2)
+                echo -n "  请输入 Cloudflare API Token: "
+                read -r CLOUDFLARE_API_TOKEN
+                if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+                    log_warn "Token 为空，请稍后在 .env 中配置"
+                else
+                    echo "  → Token 已设置 (${#CLOUDFLARE_API_TOKEN} 字符)"
+                fi
+                ;;
             *) CLOUDFLARE_API_TOKEN="" ;;
         esac
     fi
