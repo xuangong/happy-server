@@ -601,8 +601,8 @@ services:
             args:
                 EXPO_PUBLIC_HAPPY_SERVER_URL: https://${SERVER_HOST}:${LISTEN_PORT}
         container_name: happy-webapp
-        ports:
-            - "8888:80"
+        expose:
+            - "80"
         depends_on:
             - happy-server
         restart: always
@@ -621,6 +621,7 @@ services:
             - ./data/caddy_config:/config
         depends_on:
             - happy-server
+            - happy-webapp
 
 volumes:
     postgres_data:
@@ -703,7 +704,29 @@ ${SERVER_HOST}:${LISTEN_PORT} {
     tls {
         dns cloudflare {env.CLOUDFLARE_API_TOKEN}
     }
-    reverse_proxy happy-server:3005
+
+    # API 路由 → happy-server
+    handle /v1/* {
+        reverse_proxy happy-server:3005
+    }
+
+    handle /health {
+        reverse_proxy happy-server:3005
+    }
+
+    handle /socket.io/* {
+        reverse_proxy happy-server:3005
+    }
+
+    # 静态文件 (MinIO) → 可选，如果需要通过 Caddy 代理
+    handle /files/* {
+        reverse_proxy minio:9000
+    }
+
+    # 其他所有请求 → happy-webapp (前端)
+    handle {
+        reverse_proxy happy-webapp:80
+    }
 }
 EOF
 
@@ -940,8 +963,8 @@ show_summary() {
     echo "数据目录: $INSTALL_DIR/data"
     echo ""
     echo "服务地址:"
-    echo "  API Server: https://${SERVER_HOST}:${LISTEN_PORT}/"
-    echo "  Web App:    http://localhost:8888/"
+    echo "  Web App:    https://${SERVER_HOST}:${LISTEN_PORT}/"
+    echo "  API Server: https://${SERVER_HOST}:${LISTEN_PORT}/v1/"
     echo "  健康检查:   https://${SERVER_HOST}:${LISTEN_PORT}/health"
     echo ""
     echo "常用命令:"
