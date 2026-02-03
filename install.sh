@@ -31,9 +31,14 @@ while getopts "yh" opt; do
 done
 
 # 确保有交互式输入（支持 curl | bash 方式）
-if [ "$AUTO_YES" = false ] && [ ! -t 0 ]; then
-    exec < /dev/tty
-fi
+# 定义从 tty 读取的函数
+read_tty() {
+    if [ -t 0 ]; then
+        read "$@"
+    else
+        read "$@" < /dev/tty
+    fi
+}
 
 # 颜色定义
 RED='\033[0;31m'
@@ -190,11 +195,11 @@ clone_happy_server_repository() {
         INSTALL_DIR="$DEFAULT_INSTALL_DIR"
     else
         echo -n "请输入 Git 仓库地址 [$DEFAULT_REPO]: "
-        read -r REPO_URL
+        read_tty -r REPO_URL
         REPO_URL=${REPO_URL:-$DEFAULT_REPO}
 
         echo -n "请输入安装目录 [$DEFAULT_INSTALL_DIR]: "
-        read -r INSTALL_DIR
+        read_tty -r INSTALL_DIR
         INSTALL_DIR=${INSTALL_DIR:-$DEFAULT_INSTALL_DIR}
     fi
 
@@ -205,7 +210,7 @@ clone_happy_server_repository() {
             return 0
         else
             echo -n "是否删除并重新克隆? [y/N]: "
-            read -r CONFIRM
+            read_tty -r CONFIRM
             if [ "$CONFIRM" = "y" ] || [ "$CONFIRM" = "Y" ]; then
                 $SUDO rm -rf "$INSTALL_DIR"
             else
@@ -304,11 +309,11 @@ configure_environment() {
         echo "  2) 随机生成"
         echo "  3) 自定义输入"
         echo -n "请选择 [2]: "
-        read -r CHOICE
+        read_tty -r CHOICE
         CHOICE=${CHOICE:-2}
         case $CHOICE in
             2) MASTER_SECRET="$RANDOM_MASTER_SECRET"; echo "  → $MASTER_SECRET" ;;
-            3) echo -n "  请输入: "; read -r MASTER_SECRET ;;
+            3) echo -n "  请输入: "; read_tty -r MASTER_SECRET ;;
             *) MASTER_SECRET="$RANDOM_MASTER_SECRET"; echo "  → $MASTER_SECRET" ;;
         esac
 
@@ -319,12 +324,12 @@ configure_environment() {
         echo "  2) 随机生成"
         echo "  3) 自定义输入"
         echo -n "请选择 [2]: "
-        read -r CHOICE
+        read_tty -r CHOICE
         CHOICE=${CHOICE:-2}
         case $CHOICE in
             1) POSTGRES_PASSWORD="postgres"; echo "  → postgres" ;;
             2) POSTGRES_PASSWORD="$RANDOM_POSTGRES_PASSWORD"; echo "  → $POSTGRES_PASSWORD" ;;
-            3) echo -n "  请输入: "; read -r POSTGRES_PASSWORD ;;
+            3) echo -n "  请输入: "; read_tty -r POSTGRES_PASSWORD ;;
             *) POSTGRES_PASSWORD="$RANDOM_POSTGRES_PASSWORD"; echo "  → $POSTGRES_PASSWORD" ;;
         esac
 
@@ -335,12 +340,12 @@ configure_environment() {
         echo "  2) 随机生成"
         echo "  3) 自定义输入"
         echo -n "请选择 [2]: "
-        read -r CHOICE
+        read_tty -r CHOICE
         CHOICE=${CHOICE:-2}
         case $CHOICE in
             1) REDIS_PASSWORD="redis"; echo "  → redis" ;;
             2) REDIS_PASSWORD="$RANDOM_REDIS_PASSWORD"; echo "  → $REDIS_PASSWORD" ;;
-            3) echo -n "  请输入: "; read -r REDIS_PASSWORD ;;
+            3) echo -n "  请输入: "; read_tty -r REDIS_PASSWORD ;;
             *) REDIS_PASSWORD="$RANDOM_REDIS_PASSWORD"; echo "  → $REDIS_PASSWORD" ;;
         esac
 
@@ -350,11 +355,11 @@ configure_environment() {
         echo "  1) 默认: minio"
         echo "  2) 自定义输入"
         echo -n "请选择 [1]: "
-        read -r CHOICE
+        read_tty -r CHOICE
         CHOICE=${CHOICE:-1}
         case $CHOICE in
             1) MINIO_ROOT_USER="minio"; echo "  → minio" ;;
-            2) echo -n "  请输入: "; read -r MINIO_ROOT_USER ;;
+            2) echo -n "  请输入: "; read_tty -r MINIO_ROOT_USER ;;
             *) MINIO_ROOT_USER="minio"; echo "  → minio" ;;
         esac
 
@@ -365,12 +370,12 @@ configure_environment() {
         echo "  2) 随机生成"
         echo "  3) 自定义输入"
         echo -n "请选择 [2]: "
-        read -r CHOICE
+        read_tty -r CHOICE
         CHOICE=${CHOICE:-2}
         case $CHOICE in
             1) MINIO_ROOT_PASSWORD="minioadmin"; echo "  → minioadmin" ;;
             2) MINIO_ROOT_PASSWORD="$RANDOM_MINIO_PASSWORD"; echo "  → $MINIO_ROOT_PASSWORD" ;;
-            3) echo -n "  请输入: "; read -r MINIO_ROOT_PASSWORD ;;
+            3) echo -n "  请输入: "; read_tty -r MINIO_ROOT_PASSWORD ;;
             *) MINIO_ROOT_PASSWORD="$RANDOM_MINIO_PASSWORD"; echo "  → $MINIO_ROOT_PASSWORD" ;;
         esac
 
@@ -383,11 +388,11 @@ configure_environment() {
         echo "  1) 默认: xianliao.de5.net"
         echo "  2) 自定义输入"
         echo -n "请选择 [1]: "
-        read -r CHOICE
+        read_tty -r CHOICE
         CHOICE=${CHOICE:-1}
         case $CHOICE in
             1) SERVER_HOST="xianliao.de5.net"; echo "  → xianliao.de5.net" ;;
-            2) echo -n "  请输入: "; read -r SERVER_HOST ;;
+            2) echo -n "  请输入: "; read_tty -r SERVER_HOST ;;
             *) SERVER_HOST="xianliao.de5.net"; echo "  → xianliao.de5.net" ;;
         esac
 
@@ -397,11 +402,11 @@ configure_environment() {
         echo "  1) 默认: 8443"
         echo "  2) 自定义输入"
         echo -n "请选择 [1]: "
-        read -r CHOICE
+        read_tty -r CHOICE
         CHOICE=${CHOICE:-1}
         case $CHOICE in
             1) LISTEN_PORT="8443"; echo "  → 8443" ;;
-            2) echo -n "  请输入: "; read -r LISTEN_PORT ;;
+            2) echo -n "  请输入: "; read_tty -r LISTEN_PORT ;;
             *) LISTEN_PORT="8443"; echo "  → 8443" ;;
         esac
 
@@ -419,13 +424,13 @@ configure_environment() {
         echo "  1) 稍后配置 (跳过)"
         echo "  2) 现在输入"
         echo -n "请选择 [1]: "
-        read -r CHOICE
+        read_tty -r CHOICE
         CHOICE=${CHOICE:-1}
         case $CHOICE in
             1) CLOUDFLARE_API_TOKEN=""; echo "  → 已跳过，请稍后在 .env 中配置" ;;
             2)
                 echo -n "  请输入 Cloudflare API Token: "
-                read -r CLOUDFLARE_API_TOKEN
+                read_tty -r CLOUDFLARE_API_TOKEN
                 if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
                     log_warn "Token 为空，请稍后在 .env 中配置"
                 else
@@ -845,7 +850,7 @@ NODEJS_SCRIPT
             HAPPY_DIR="$DEFAULT_HAPPY_DIR"
         else
             echo -n "请输入 Happy CLI 配置目录 [$DEFAULT_HAPPY_DIR]: "
-            read -r HAPPY_DIR
+            read_tty -r HAPPY_DIR
             HAPPY_DIR=${HAPPY_DIR:-$DEFAULT_HAPPY_DIR}
         fi
 
@@ -983,7 +988,7 @@ main() {
         log_info "使用 -y 参数，跳过确认"
     else
         echo -n "是否继续? [Y/n]: "
-        read -r CONFIRM
+        read_tty -r CONFIRM
         if [ "$CONFIRM" = "n" ] || [ "$CONFIRM" = "N" ]; then
             log_info "安装已取消"
             exit 0
