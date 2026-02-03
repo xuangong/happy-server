@@ -271,31 +271,156 @@ configure_environment() {
     echo ""
     log_info "配置服务参数"
 
-    # 生成 HANDY_MASTER_SECRET
-    DEFAULT_MASTER_SECRET=$(generate_secret)
+    # 生成随机密码备用
+    RANDOM_MASTER_SECRET=$(generate_secret)
+    RANDOM_POSTGRES_PASSWORD=$(generate_secret)
+    RANDOM_REDIS_PASSWORD=$(generate_secret)
+    RANDOM_MINIO_PASSWORD=$(generate_secret)
 
     if [ "$AUTO_YES" = true ]; then
-        MASTER_SECRET="$DEFAULT_MASTER_SECRET"
-        LISTEN_PORT=8080
+        MASTER_SECRET="$RANDOM_MASTER_SECRET"
+        POSTGRES_PASSWORD="$RANDOM_POSTGRES_PASSWORD"
+        REDIS_PASSWORD="$RANDOM_REDIS_PASSWORD"
+        MINIO_ROOT_USER="minio"
+        MINIO_ROOT_PASSWORD="$RANDOM_MINIO_PASSWORD"
+        LISTEN_PORT=8443
         SERVER_HOST="xianliao.de5.net"
+        CLOUDFLARE_API_TOKEN=""
     else
         echo ""
+        log_info "=== 安全配置 ==="
+        echo ""
+        echo "选项说明: 1=使用默认值  2=生成随机值  3=自定义输入"
+        echo ""
+
+        # HANDY_MASTER_SECRET
         echo "HANDY_MASTER_SECRET 用于签发认证 token"
-        echo -n "请输入 HANDY_MASTER_SECRET [$DEFAULT_MASTER_SECRET]: "
-        read MASTER_SECRET
-        MASTER_SECRET=${MASTER_SECRET:-$DEFAULT_MASTER_SECRET}
+        echo "  1) 默认: (无默认值)"
+        echo "  2) 随机生成"
+        echo "  3) 自定义输入"
+        echo -n "请选择 [2]: "
+        read CHOICE
+        CHOICE=${CHOICE:-2}
+        case $CHOICE in
+            2) MASTER_SECRET="$RANDOM_MASTER_SECRET"; echo "  → $MASTER_SECRET" ;;
+            3) echo -n "  请输入: "; read MASTER_SECRET ;;
+            *) MASTER_SECRET="$RANDOM_MASTER_SECRET"; echo "  → $MASTER_SECRET" ;;
+        esac
+
+        # PostgreSQL 密码
+        echo ""
+        echo "PostgreSQL 密码"
+        echo "  1) 默认: postgres"
+        echo "  2) 随机生成"
+        echo "  3) 自定义输入"
+        echo -n "请选择 [2]: "
+        read CHOICE
+        CHOICE=${CHOICE:-2}
+        case $CHOICE in
+            1) POSTGRES_PASSWORD="postgres"; echo "  → postgres" ;;
+            2) POSTGRES_PASSWORD="$RANDOM_POSTGRES_PASSWORD"; echo "  → $POSTGRES_PASSWORD" ;;
+            3) echo -n "  请输入: "; read POSTGRES_PASSWORD ;;
+            *) POSTGRES_PASSWORD="$RANDOM_POSTGRES_PASSWORD"; echo "  → $POSTGRES_PASSWORD" ;;
+        esac
+
+        # Redis 密码
+        echo ""
+        echo "Redis 密码"
+        echo "  1) 默认: redis"
+        echo "  2) 随机生成"
+        echo "  3) 自定义输入"
+        echo -n "请选择 [2]: "
+        read CHOICE
+        CHOICE=${CHOICE:-2}
+        case $CHOICE in
+            1) REDIS_PASSWORD="redis"; echo "  → redis" ;;
+            2) REDIS_PASSWORD="$RANDOM_REDIS_PASSWORD"; echo "  → $REDIS_PASSWORD" ;;
+            3) echo -n "  请输入: "; read REDIS_PASSWORD ;;
+            *) REDIS_PASSWORD="$RANDOM_REDIS_PASSWORD"; echo "  → $REDIS_PASSWORD" ;;
+        esac
+
+        # MinIO 用户名
+        echo ""
+        echo "MinIO 用户名"
+        echo "  1) 默认: minio"
+        echo "  2) 自定义输入"
+        echo -n "请选择 [1]: "
+        read CHOICE
+        CHOICE=${CHOICE:-1}
+        case $CHOICE in
+            1) MINIO_ROOT_USER="minio"; echo "  → minio" ;;
+            2) echo -n "  请输入: "; read MINIO_ROOT_USER ;;
+            *) MINIO_ROOT_USER="minio"; echo "  → minio" ;;
+        esac
+
+        # MinIO 密码
+        echo ""
+        echo "MinIO 密码"
+        echo "  1) 默认: minioadmin"
+        echo "  2) 随机生成"
+        echo "  3) 自定义输入"
+        echo -n "请选择 [2]: "
+        read CHOICE
+        CHOICE=${CHOICE:-2}
+        case $CHOICE in
+            1) MINIO_ROOT_PASSWORD="minioadmin"; echo "  → minioadmin" ;;
+            2) MINIO_ROOT_PASSWORD="$RANDOM_MINIO_PASSWORD"; echo "  → $MINIO_ROOT_PASSWORD" ;;
+            3) echo -n "  请输入: "; read MINIO_ROOT_PASSWORD ;;
+            *) MINIO_ROOT_PASSWORD="$RANDOM_MINIO_PASSWORD"; echo "  → $MINIO_ROOT_PASSWORD" ;;
+        esac
+
+        echo ""
+        log_info "=== 网络配置 ==="
+        echo ""
+
+        # 服务器域名
+        echo "服务器域名 (用于 HTTPS 证书和 webapp 连接)"
+        echo "  1) 默认: xianliao.de5.net"
+        echo "  2) 自定义输入"
+        echo -n "请选择 [1]: "
+        read CHOICE
+        CHOICE=${CHOICE:-1}
+        case $CHOICE in
+            1) SERVER_HOST="xianliao.de5.net"; echo "  → xianliao.de5.net" ;;
+            2) echo -n "  请输入: "; read SERVER_HOST ;;
+            *) SERVER_HOST="xianliao.de5.net"; echo "  → xianliao.de5.net" ;;
+        esac
 
         # 监听端口
-        echo -n "请输入监听端口 [8080]: "
-        read LISTEN_PORT
-        LISTEN_PORT=${LISTEN_PORT:-8080}
-
-        # 服务器外部地址（用于 webapp 连接）
         echo ""
-        echo "服务器外部地址用于 webapp 连接到 API"
-        echo -n "请输入服务器外部地址 [xianliao.de5.net]: "
-        read SERVER_HOST
-        SERVER_HOST=${SERVER_HOST:-xianliao.de5.net}
+        echo "HTTPS 监听端口"
+        echo "  1) 默认: 8443"
+        echo "  2) 自定义输入"
+        echo -n "请选择 [1]: "
+        read CHOICE
+        CHOICE=${CHOICE:-1}
+        case $CHOICE in
+            1) LISTEN_PORT="8443"; echo "  → 8443" ;;
+            2) echo -n "  请输入: "; read LISTEN_PORT ;;
+            *) LISTEN_PORT="8443"; echo "  → 8443" ;;
+        esac
+
+        # Cloudflare API Token
+        echo ""
+        log_info "=== Cloudflare 配置 (用于 HTTPS 证书) ==="
+        echo ""
+        echo "获取方式:"
+        echo "  1. 登录 https://dash.cloudflare.com"
+        echo "  2. 点击右上角头像 → My Profile → API Tokens"
+        echo "  3. Create Token → Edit zone DNS 模板"
+        echo "  4. Zone Resources 选择你的域名"
+        echo ""
+        echo "Cloudflare API Token"
+        echo "  1) 稍后配置 (跳过)"
+        echo "  2) 现在输入"
+        echo -n "请选择 [1]: "
+        read CHOICE
+        CHOICE=${CHOICE:-1}
+        case $CHOICE in
+            1) CLOUDFLARE_API_TOKEN=""; echo "  → 已跳过，请稍后在 .env 中配置" ;;
+            2) echo -n "  请输入: "; read CLOUDFLARE_API_TOKEN ;;
+            *) CLOUDFLARE_API_TOKEN="" ;;
+        esac
     fi
 
     # 保存配置到 .env 文件
@@ -303,35 +428,40 @@ configure_environment() {
 # Happy Server 配置
 HANDY_MASTER_SECRET=$MASTER_SECRET
 LISTEN_PORT=$LISTEN_PORT
+SERVER_HOST=$SERVER_HOST
 
 # 数据库
-DATABASE_URL=postgresql://postgres:postgres@postgres:5432/handy
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
+POSTGRES_PASSWORD=$POSTGRES_PASSWORD
 POSTGRES_DB=handy
 
 # Redis
-REDIS_URL=redis://redis:6379
+REDIS_PASSWORD=$REDIS_PASSWORD
 
 # S3/MinIO
-S3_HOST=minio
-S3_PORT=9000
-S3_USE_SSL=false
-S3_ACCESS_KEY=minioadmin
-S3_SECRET_KEY=minioadmin
-S3_BUCKET=happy
-S3_PUBLIC_URL=http://localhost:9000/happy
+MINIO_ROOT_USER=$MINIO_ROOT_USER
+MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD
+S3_PUBLIC_URL=https://${SERVER_HOST}:${LISTEN_PORT}/files
 
-# Server
-PORT=3005
-NODE_ENV=production
-
-# Webapp
-WEBAPP_SERVER_URL=http://${SERVER_HOST}:${LISTEN_PORT}
-WEBAPP_PORT=8888
+# Cloudflare (用于 HTTPS 证书)
+CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN
 EOF
 
-    log_success "环境配置已保存到 $INSTALL_DIR/.env"
+    echo ""
+    log_success "配置已保存到 $INSTALL_DIR/.env"
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "请保存以下配置信息（不会再次显示）:"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "HANDY_MASTER_SECRET: $MASTER_SECRET"
+    echo "PostgreSQL 密码:     $POSTGRES_PASSWORD"
+    echo "Redis 密码:          $REDIS_PASSWORD"
+    echo "MinIO 用户名:        $MINIO_ROOT_USER"
+    echo "MinIO 密码:          $MINIO_ROOT_PASSWORD"
+    echo "服务器域名:          $SERVER_HOST"
+    echo "HTTPS 端口:          $LISTEN_PORT"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
 }
 
 # 创建 docker-compose.yaml
@@ -339,19 +469,22 @@ create_docker_compose() {
     log_info "创建 docker-compose.yaml..."
 
     cat > "$INSTALL_DIR/docker-compose.yaml" << 'EOF'
+version: '3.8'
+
 services:
     postgres:
         image: postgres:16-alpine
         container_name: happy-postgres
-        restart: always
         environment:
             POSTGRES_USER: ${POSTGRES_USER:-postgres}
-            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
             POSTGRES_DB: ${POSTGRES_DB:-handy}
         volumes:
             - ./data/postgres:/var/lib/postgresql/data
+        expose:
+            - "5432"
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U postgres -d handy"]
+            test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-handy}"]
             interval: 5s
             timeout: 5s
             retries: 5
@@ -359,12 +492,13 @@ services:
     redis:
         image: redis:7-alpine
         container_name: happy-redis
-        restart: always
-        command: redis-server --appendonly yes
+        command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
         volumes:
             - ./data/redis:/data
+        expose:
+            - "6379"
         healthcheck:
-            test: ["CMD", "redis-cli", "ping"]
+            test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
             interval: 5s
             timeout: 5s
             retries: 5
@@ -372,13 +506,15 @@ services:
     minio:
         image: minio/minio
         container_name: happy-minio
-        restart: always
         command: server /data --console-address ":9001"
         environment:
-            MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
-            MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+            MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+            MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
         volumes:
             - ./data/minio:/data
+        expose:
+            - "9000"
+            - "9001"
         healthcheck:
             test: ["CMD", "mc", "ready", "local"]
             interval: 5s
@@ -394,19 +530,17 @@ services:
         entrypoint: >
             /bin/sh -c "
             sleep 5;
-            mc alias set local http://minio:9000 minioadmin minioadmin;
+            mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
             mc mb -p local/happy || true;
             mc anonymous set download local/happy;
             exit 0;
             "
-        restart: "no"
 
     happy-server:
         build:
             context: .
             dockerfile: Dockerfile
         container_name: happy-server
-        restart: always
         depends_on:
             postgres:
                 condition: service_healthy
@@ -417,22 +551,23 @@ services:
             minio-init:
                 condition: service_completed_successfully
         environment:
-            DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/handy}
-            REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-            S3_HOST: ${S3_HOST:-minio}
-            S3_PORT: ${S3_PORT:-9000}
-            S3_USE_SSL: ${S3_USE_SSL:-false}
-            S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
-            S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin}
-            S3_BUCKET: ${S3_BUCKET:-happy}
+            DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-handy}
+            REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+            S3_HOST: minio
+            S3_PORT: "9000"
+            S3_USE_SSL: "false"
+            S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+            S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+            S3_BUCKET: happy
             S3_PUBLIC_URL: ${S3_PUBLIC_URL:-http://localhost:9000/happy}
-            PORT: ${PORT:-3005}
-            NODE_ENV: ${NODE_ENV:-production}
+            PORT: "3005"
+            NODE_ENV: production
             HANDY_MASTER_SECRET: ${HANDY_MASTER_SECRET}
             METRICS_ENABLED: "true"
             METRICS_PORT: "9090"
+        expose:
+            - "3005"
         ports:
-            - "${LISTEN_PORT:-8080}:3005"
             - "9090:9090"
         healthcheck:
             test: ["CMD", "wget", "-q", "--spider", "http://localhost:3005/health"]
@@ -446,11 +581,33 @@ services:
             context: /opt/happy
             dockerfile: Dockerfile.webapp
             args:
-                - EXPO_PUBLIC_HAPPY_SERVER_URL=${WEBAPP_SERVER_URL:-http://xianliao.de5.net:8080}
+                EXPO_PUBLIC_HAPPY_SERVER_URL: https://${SERVER_HOST}:${LISTEN_PORT}
         container_name: happy-webapp
         ports:
-            - "${WEBAPP_PORT:-8888}:80"
+            - "8888:80"
+        depends_on:
+            - happy-server
         restart: always
+
+    caddy:
+        image: slothcroissant/caddy-cloudflaredns:latest
+        container_name: happy-caddy
+        restart: always
+        ports:
+            - "${LISTEN_PORT:-8443}:${LISTEN_PORT:-8443}"
+        environment:
+            CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
+        volumes:
+            - ./Caddyfile:/etc/caddy/Caddyfile:ro
+            - ./data/caddy:/data
+            - ./data/caddy_config:/config
+        depends_on:
+            - happy-server
+
+volumes:
+    postgres_data:
+    redis_data:
+    minio_data:
 EOF
 
     log_success "docker-compose.yaml 已创建"
@@ -517,6 +674,22 @@ EOF
     else
         log_info "docker-entrypoint.sh 已存在，跳过"
     fi
+}
+
+# 创建 Caddyfile
+create_caddyfile() {
+    log_info "创建 Caddyfile..."
+
+    cat > "$INSTALL_DIR/Caddyfile" << EOF
+${SERVER_HOST}:${LISTEN_PORT} {
+    tls {
+        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+    }
+    reverse_proxy happy-server:3005
+}
+EOF
+
+    log_success "Caddyfile 已创建"
 }
 
 # 生成测试账户和 access.key
@@ -817,6 +990,7 @@ main() {
     create_docker_compose
     create_dockerfile
     create_entrypoint
+    create_caddyfile
 
     start_services
     generate_access_key

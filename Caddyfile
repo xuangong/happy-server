@@ -1,0 +1,6 @@
+xianliao.de5.net:8443 {
+    tls {
+        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+    }
+    reverse_proxy happy-server:3005
+}

@@ -5,15 +5,15 @@ services:
         image: postgres:16-alpine
         container_name: happy-postgres
         environment:
-            POSTGRES_USER: postgres
-            POSTGRES_PASSWORD: postgres
-            POSTGRES_DB: handy
+            POSTGRES_USER: ${POSTGRES_USER:-postgres}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+            POSTGRES_DB: ${POSTGRES_DB:-handy}
         volumes:
             - ./data/postgres:/var/lib/postgresql/data
-        ports:
-            - "5432:5432"
+        expose:
+            - "5432"
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U postgres -d handy"]
+            test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-handy}"]
             interval: 5s
             timeout: 5s
             retries: 5
@@ -21,13 +21,13 @@ services:
     redis:
         image: redis:7-alpine
         container_name: happy-redis
-        command: redis-server --appendonly yes
+        command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
         volumes:
             - ./data/redis:/data
-        ports:
-            - "6379:6379"
+        expose:
+            - "6379"
         healthcheck:
-            test: ["CMD", "redis-cli", "ping"]
+            test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
             interval: 5s
             timeout: 5s
             retries: 5
@@ -37,13 +37,13 @@ services:
         container_name: happy-minio
         command: server /data --console-address ":9001"
         environment:
-            MINIO_ROOT_USER: minioadmin
-            MINIO_ROOT_PASSWORD: minioadmin
+            MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+            MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
         volumes:
             - ./data/minio:/data
-        ports:
-            - "9000:9000"
-            - "9001:9001"
+        expose:
+            - "9000"
+            - "9001"
         healthcheck:
             test: ["CMD", "mc", "ready", "local"]
             interval: 5s
@@ -60,7 +60,7 @@ services:
         entrypoint: >
             /bin/sh -c "
             sleep 5;
-            mc alias set local http://minio:9000 minioadmin minioadmin;
+            mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
             mc mb -p local/happy || true;
             mc anonymous set download local/happy;
             exit 0;
@@ -82,21 +82,21 @@ services:
                 condition: service_completed_successfully
         environment:
             # Database
-            DATABASE_URL: postgresql://postgres:postgres@postgres:5432/handy
+            DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-handy}
             # Redis
-            REDIS_URL: redis://redis:6379
+            REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
             # S3/MinIO
             S3_HOST: minio
             S3_PORT: "9000"
             S3_USE_SSL: "false"
-            S3_ACCESS_KEY: minioadmin
-            S3_SECRET_KEY: minioadmin
+            S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+            S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
             S3_BUCKET: happy
-            S3_PUBLIC_URL: http://localhost:9000/happy
+            S3_PUBLIC_URL: ${S3_PUBLIC_URL:-http://localhost:9000/happy}
             # Server
             PORT: "3005"
             NODE_ENV: production
-            HANDY_MASTER_SECRET: your-super-secret-key-change-in-production
+            HANDY_MASTER_SECRET: ${HANDY_MASTER_SECRET}
             # Metrics
             METRICS_ENABLED: "true"
             METRICS_PORT: "9090"
@@ -109,8 +109,9 @@ services:
             # GITHUB_WEBHOOK_SECRET: ""
             # Optional: Voice feature
             # ELEVENLABS_API_KEY: ""
+        expose:
+            - "3005"
         ports:
-            - "8080:3005"
             - "9090:9090"  # Metrics
         healthcheck:
             test: ["CMD", "wget", "-q", "--spider", "http://localhost:3005/health"]
@@ -124,13 +125,28 @@ services:
             context: ../happy
             dockerfile: Dockerfile.webapp
             args:
-                EXPO_PUBLIC_HAPPY_SERVER_URL: http://xianliao.de5.net:8080
+                EXPO_PUBLIC_HAPPY_SERVER_URL: https://xianliao.de5.net:8443
         container_name: happy-webapp
         ports:
             - "8888:80"
         depends_on:
             - happy-server
         restart: always
+
+    caddy:
+        image: slothcroissant/caddy-cloudflaredns:latest
+        container_name: happy-caddy
+        restart: always
+        ports:
+            - "${LISTEN_PORT:-8443}:${LISTEN_PORT:-8443}"
+        environment:
+            CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
+        volumes:
+            - ./Caddyfile:/etc/caddy/Caddyfile:ro
+            - ./data/caddy:/data
+            - ./data/caddy_config:/config
+        depends_on:
+            - happy-server
 
 volumes:
     postgres_data:
